@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7fc;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            width: 80%;
+            max-width: 800px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .todo-item {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .todo-item h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .todo-item p {
+            margin: 5px 0;
+            color: #777;
+            font-size: 14px;
+        }
+
+        .todo-item button {
+            background-color: #ff5252;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .todo-item button:hover {
+            background-color: #e41b1b;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 16px;
+        }
+
+        .form-group button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+        }
+
+        .form-group button:hover {
+            background-color: #45a049;
+        }
+
+        .error {
+            color: red;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>My To-Do List</h1>
+
+        <!-- Add Todo Form -->
+        <div class="form-group">
+            <h3>Add a New To-Do</h3>
+            <input type="text" id="name" placeholder="Enter to-do title" />
+            <textarea id="description" placeholder="Enter description"></textarea>
+            <button onclick="addTodo()">Add To-Do</button>
+            <div class="error" id="error-message"></div>
+        </div>
+
+        <!-- Todo List -->
+        <div class="todo-list" id="todo-list">
+            <!-- To-Do items will be injected here dynamically -->
+        </div>
+    </div>
+
+    <script>
+        // Fetch the list of to-do items
+        let editingItemId = null;
+
+        async function fetchTodos() {
+            const response = await fetch('/items');
+            const todos = await response.json();
+            renderTodos(todos);
+        }
+
+        // Render To-Do items
+        function renderTodos(todos) {
+            const todoList = document.getElementById('todo-list');
+            todoList.innerHTML = ''; // Clear previous todos
+
+            todos.forEach(todo => {
+                const todoElement = document.createElement('div');
+                todoElement.classList.add('todo-item');
+                todoElement.innerHTML = `
+                    <div>
+                        <h3>${todo.item}</h3>
+                        <p>${todo.description}</p>
+                    </div>
+                    <div>
+                        <button onclick="editTodo(${todo.id}, '${todo.item}', '${todo.description}')">Edit</button>
+                        <button onclick="deleteTodo(${todo.id})"><i class="fas fa-trash"></i> Delete</button>
+                    </div>
+                `;
+                todoList.appendChild(todoElement);
+            });
+        }
+
+        // Add new To-Do item
+        async function addTodo() {
+            const itemName = document.getElementById('name').value;
+            const itemDescription = document.getElementById('description').value;
+
+            if (!itemName || !itemDescription) {
+                document.getElementById('error-message').innerText = "Both fields are required!";
+                return;
+            }
+
+            const newTodo = {
+                name: itemName,
+                description: itemDescription
+            };
+
+            const response = await fetch('/items', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newTodo)
+            });
+
+            const todo = await response.json();
+            fetchTodos(); // Reload the list
+            document.getElementById('name').value = '';
+            document.getElementById('description').value = '';
+        }
+
+        // Delete To-Do item
+        async function deleteTodo(id) {
+            await fetch(`/items/${id}`, {
+                method: 'DELETE'
+            });
+            fetchTodos(); // Reload the list after deletion
+        }
+
+        function editTodo(id, item, description) {
+            editingItemId = id;
+            document.getElementById('name').value = item;
+            document.getElementById('description').value = description;
+
+            // Change button functionality to update
+            const addButton = document.querySelector('.form-group button');
+            addButton.innerText = 'Update To-Do';
+            addButton.setAttribute('onclick', `updateTodo()`);
+        }
+
+        async function updateTodo() {
+            const itemName = document.getElementById('name').value;
+            const itemDescription = document.getElementById('description').value;
+
+            const updatedTodo = {
+                name: itemName,
+                description: itemDescription
+            };
+
+            await fetch(`/items/${editingItemId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updatedTodo)
+            });
+
+            fetchTodos(); // Reload the list
+            resetForm();
+        }
+
+        // Reset form for adding new todo
+        function resetForm() {
+            document.getElementById('name').value = '';
+            document.getElementById('description').value = '';
+            const addButton = document.querySelector('.form-group button');
+            addButton.innerText = 'Add To-Do';
+            addButton.setAttribute('onclick', `addTodo()`);
+            editingItemId = null;
+        }
+
+        // Fetch to-dos on initial load
+        window.onload = fetchTodos;
+    </script>
+</body>
+
+</html>
